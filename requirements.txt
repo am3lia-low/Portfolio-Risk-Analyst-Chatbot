@@ -13,7 +13,6 @@ rank-bm25==0.2.2
 
 # ML
 torch==2.11.0
-torchvision==0.27.0
 transformers==5.4.0
 
 # Quant / data
