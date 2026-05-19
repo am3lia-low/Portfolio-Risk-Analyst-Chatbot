@@ -1,14 +1,171 @@
 \section{Evaluation}
 \label{sec:evaluation}
 
-\subsection{Research questions and metrics}
-\todo{What you measure: e.g.\ retrieval quality (Recall@$k$, MRR), answer groundedness, user-task success, latency; align with project milestones.}
+\subsection{LSTM Evaluation}
 
-\subsection{Experimental setup}
-\todo{Portfolios or scenarios tested; baselines (no RAG, naive prompts); hardware/software.}
+\begin{table}[h]
+    \centering
+    \begin{tabular}{|l|c|}
+        \hline
+        Volatility Prediction Evaluation MSE & 0.0026 \\
+        \hline
+        Volatility Prediction Evaluation MAE &  0.0389 \\
+        \hline
+        Direction Prediction Evaluation AUC & 0.5358 \\
+        \hline
+        Direction Prediction Evaluation Accuracy & 0.67 \\
+        \hline
+    \end{tabular}
 
-\subsection{Results}
-\todo{Tables/figures — reference files in \texttt{report/figures/} via \texttt{\textbackslash includegraphics}.}
+    \caption{Prediction results of volatility and future direction of portfolio on test dataset}
+    \label{tab:lstm_prediction_results}
+\end{table}
 
-\subsection{Ablation or sensitivity (if any)}
-\todo{Top-$k$, chunk size, model choice; omit if not in scope.}
+As seen from Table~\ref{tab:lstm_prediction_results}, the model has relatively strong accuracy in predicting future volatility of portfolio over the next 10 days, with a test MSE of 0.0026 and MAE of 0.0389. These results suggest that the model is able to effectively learn and estimate short-term portfolio risk. This result is consistent with expectations, as volatility exhibits temporal clustering, making it more predictable from historical data. Comparatively, the model struggled in predicting future direction. The low AUC of only about 0.5358 suggests that the model’s ability to distinguish between future upward and downward movements of the portfolio is only marginally better than random guessing. 
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{|l|c|c|}
+        \hline
+          & Future Upward direction & Future Downward direction \\
+        \hline
+        Precision & 0.81 & 0.64 \\
+        \hline
+        Recall & 0.34 & 0.94 \\
+        \hline
+        F1-score & 0.48 & 0.76 \\
+        \hline
+    \end{tabular}
+
+    \caption{Classification report of future direction of portfolio on test dataset}
+    \label{tab:lstm_classification_report}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.65\textwidth]{LSTM_confusion_matrix.png}
+    \caption{Confusion matrix on future direction of portfolio on test dataset.}
+    \label{fig:lstm_confusion_matrix}
+\end{figure}
+
+As observed from the confusion matrix in Figure~\ref{fig:lstm_confusion_matrix}, the model performs better in predicting future portfolio downward movements. From Table~\ref{tab:lstm_classification_report}, the model is observed to have very high recall for downward movements, showing that it is able to identify most future downward portfolio directions. However, it has low recall for future upward movements and many future upward trends are misclassified as downward. The model struggles to learn a robust directional signal and the input feature of 60 days log-return does not contain sufficient predictive information for future direction. 
+
+The discrepancy between volatility and direction prediction performance highlights the challenges in financial time series modeling. Volatility is generally easier to predict due to its relatively stable statistical properties like clustering, which allows the model to effectively learn temporal dependencies. Comparatively, future portfolio direction is inherently noisy and less predictable, especially when using relatively short input windows such as 60 days of log returns.
+
+The model is also observed to be more conservative when predicting upward movements as seen from the significantly lower recall for upwards prediction. There are fewer false positives as seen from the higher precision for upwards prediction and the model is more sensitive in predicting downward movements with fewer missed negatives from the higher recall, which is relatively more desirable than the converse in a risk management context.
+
+Therefore, while the LSTM is effective for volatility forecasting, it is less suitable for directional prediction as it struggles to extract meaningful signals for direction due to the high level of noise and weak predictability in short-term portfolio direction. 
+
+\subsection{RAG Retrieval Evaluation}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{rag_eval.png}
+    \caption{Recall and MRR at $k \in \{5, 8, 10\}$ across three intent routes.}
+    \label{fig:rag_recall_mrr}
+\end{figure}
+
+To evaluate retrieval quality, nine queries were designed spanning all four intent routes -  \texttt{full\_analysis}, \texttt{concept\_explanation}, \texttt{trend\_prediction} and \texttt{no\_intent}, at three difficulty levels: Easy, Medium and Hard. Retrieval performance was assessed using Recall@$k$ and Mean Reciprocal Rank (MRR) at $k \in \{5, 8, 10\}$. While MRR measures the rank position of the first relevant result, Recall@$k$ measures how many relevant chunks are surfaced within the top k; the two metrics are therefore complementary, a system can rank its first retrieved chunk perfectly (MRR = 1.0) while still missing out other relevant material (Recall $<$ 1.0).
+
+As shown in Figure~\ref{fig:rag_recall_mrr}, MRR equals 1.0 across every intent at every value of k, indicating that whenever a relevant chunk is retrieved, it is consistently ranked first. This confirms that the hybrid retrieval strategy produces well-ordered results.
+
+For \texttt{full\_analysis} queries, Recall@$k$ rises from 0.385 at k=5 to 0.769 at k = 10, reflecting consistent retrieval from a well-populated knowledge store. \texttt{Trend\_prediction} achieves the strongest recall trajectory, reaching near-perfect scores at k=10, suggesting that dense semantic search handles indirectly phrased forward-looking queries effectively.
+
+\texttt{Concept\_explanation} records the lowest Recall@$k$ values; however, this is an artefact of knowledge base construction rather than retrieval failure. Only one relevant chunk exists per concept in the concept store, placing a hard ceiling on the system and motivating future work to expand the concept corpus.
+
+Across all intents, increasing k consistently improves Recall, confirming that the relevant chunks exist in the index and that broader retrieval windows surface them reliably. Overall, the results suggest that the pipeline is well-calibrated for ranking quality, with the primary path to improvement lying in expanding the concept knowledge store rather than in changes to the retrieval mechanism itself.
+
+
+
+\subsection{LLM Evaluation}
+Finally, we evaluated the workflow functions to verify consistent LLM performance, as these models are prone to variable outputs.
+
+\subsubsection{\texttt{intent\_classifier}}
+\paragraph{Evaluation Methodology}
+
+The classifier was evaluated using a hand-crafted suite of 57 test cases organised into nine categories of increasing difficulty. These categories were designed to test not only straightforward intent recognition, but also disambiguation, dual-intent handling, contextual inference, and entity extraction under noisy or ambiguous phrasing.
+
+\begin{itemize}
+    \item \textbf{Section 1 - Clear-cut intents:} unambiguous examples of all six intents, used to establish baseline performance on straightforward inputs.
+    \item \textbf{Section 2 - Disambiguation:} lexically similar phrasings that should map to different intents, such as possessive metric queries versus definitional concept queries.
+    \item \textbf{Section 3 - Multi-intent messages:} messages containing two distinct requests, requiring both primary and secondary intents to be set correctly.
+    \item \textbf{Section 4 - Disguised intents:} cases where greetings or filler phrases wrap an actionable request and should not be misrouted as \texttt{general\_chat}.
+    \item \textbf{Section 5 - Ambiguous or stress cases:} vague, minimal, or highly underspecified messages that require the classifier to rely on scope and context.
+    \item \textbf{Section 6 - Entity extraction:} cases that test whether metric and concept names are extracted correctly in addition to the intent label.
+    \item \textbf{Section 7 - Hard multi-intent edge cases:} messages where two apparent requests collapse into one intent, or where secondary intents involve difficult cross-intent pairings.
+    \item \textbf{Section 8 - Adversarial or noisy phrasing:} inputs containing negation, informal spelling, long messages with buried requests, or hypothetical phrasing that resembles another intent class.
+    \item \textbf{Section 9 - Boundary between \texttt{full\_analysis} and \texttt{specific\_metric}:} cases targeting the hardest decision boundary in the taxonomy, where the distinction lies primarily in scope rather than wording.
+\end{itemize}
+
+Each test case was checked for:
+\begin{enumerate}
+    \item correct primary intent,
+    \item correct secondary intent where expected, and
+    \item correct entity extraction where specified.
+\end{enumerate}
+
+\paragraph{Results}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.05\textwidth]{eval_intent_classifier.png}
+    \caption{Plotted results of \texttt{intent\_classifier} tests.}
+    \label{fig:eval_intent_classifier}
+\end{figure}
+
+Overall, the classifier achieved approximately 85-88\% accuracy (around 49-50 of the 57 test cases passed). By intent category, \texttt{full\_analysis} achieved the highest absolute count with 21 correctly classified instances, making it the largest intent class, followed by \texttt{specific\_metric} with 16 and \texttt{concept\_explanation} with 10. The remaining categories recorded smaller counts. The confidence scatter plot showed a useful separation: correctly classified tests typically had model confidence of 0.8 to 1.0
+
+It should also be noted that most failures clustered at 0, suggesting that misclassification might also be due to API failures (likely \texttt{503} error). Because when such errors strike, \texttt{intent\_classifier} is designed to default the query to \texttt{general\_chat}. The three test cases misclassified as \texttt{general\_chat} in the rightmost plot, and their near-consecutive occurrences, support this inference.
+
+\subsubsection{\texttt{generate\_explanation}}
+
+\paragraph{Evaluation Methodology}
+The explainer was evaluated using an LLM-as-judge framework across a single, balanced portfolio configuration (AAPL, MSFT, SPY, TLT, GLD, VNQ), covering all six intent types. The evaluation had two layers:
+
+\begin{itemize}
+    \item Layer 1 — Full pipeline execution: \newline
+    For each intent type, a realistic test query was sent through the complete pipeline: \texttt{classify\_intent} → \texttt{route\_and\_execute} → \texttt{generate\_explanation} \newline
+    This tests the end-to-end behaviour, ensuring the explainer works compatibly in the full pipeline. The \texttt{follow\_up} test case was chained off the actual \texttt{full\_analysis} response to simulate a real conversational sequence.
+
+    \item Layer 2 — LLM-as-judge scoring: \newline
+    Two independent models from different providers, Claude Sonnet (claude-sonnet-4-6) and Groq Llama (llama-3.3-70b-versatile), were chosen to guard against self-grading bias. \newline
+
+    They scored the responses on four dimensions, on a 0-5 scale:
+    \begin{enumerate}
+        \item \textbf{Factual accuracy}: Do the numbers and labels in the response match the provided data exactly?
+        \item \textbf{Intent alignment}: Does the response directly and fully answer the user’s query?
+        \item \textbf{Completeness}: Does the response cover all required aspects for this intent type?
+        \item \textbf{Clarity}: Is the response well-structured, written in plain, comprehensible language?
+
+    \end{enumerate}
+
+\end{itemize}
+
+\paragraph{Results}
+
+Results are visualised as dual heatmaps: rows represent intent types, columns represent the four evaluation dimensions, with one heatmap for each judge.
+
+The initial evaluation (Figure~\ref{fig:eval_heatmap_before}) revealed concentrated factual-accuracy weaknesses in the \texttt{trend\_prediction} and \texttt{full\_analysis} responses. These failures were most plausibly driven by two issues: first, confusion between \texttt{predicted\_direction} (direction of portfolio returns) and \texttt{predicted\_volatility}; second, unsupported numerical claims in intents that referenced many metrics simultaneously.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{eval_heatmap_before.png}
+    \caption{Initial judge scorings for the various responses.}
+    \label{fig:eval_heatmap_before}
+\end{figure}
+
+To address these weaknesses, three targeted prompt changes were introduced:
+
+\begin{itemize}
+    \item an explicit definition stating that \texttt{predicted\_direction} refers to the direction of \texttt{portfolio returns}, not volatility;
+    \item an inline \texttt{AUTHORISED NUMBERS} block in the \texttt{generate\_explanation} prompt to constrain numerical references to provided values; and
+    \item reducing Gemini 2.5 Flash temperature from \texttt{0.7} to \texttt{0.0} to improve determinism.
+\end{itemize}
+
+The final evaluation (Figure~\ref{fig:eval_heatmap_final}) shows clear improvement after these interventions, particularly in factual accuracy for the previously weak intents. This suggests that the main issue was not the overall workflow design, but insufficient prompt-level grounding and field disambiguation in numerically dense responses.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{eval_heatmap_final.png}
+    \caption{Final judge scorings for the various responses.}
+    \label{fig:eval_heatmap_final}
+\end{figure}
