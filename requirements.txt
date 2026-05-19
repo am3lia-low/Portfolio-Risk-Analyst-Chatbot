@@ -4,6 +4,7 @@ python-dotenv==1.2.2
 # LLM
 google-genai==1.69.0
 pydantic==2.12.5
+protobuf==5.29.6
 
 # RAG / retrieval
 chromadb==1.5.5

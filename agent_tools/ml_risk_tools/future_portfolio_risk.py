@@ -54,7 +54,7 @@ class LSTMModel(nn.Module):
             - dir_output: Predicted probability of upward movement (batch_size, 1)
 
     """
-    def __init__(self, input_size, hidden_size1=64, hidden_size2=32):
+    def __init__(self, input_size, hidden_size1=128, hidden_size2=64):
         super(LSTMModel, self).__init__()
 
         # LSTM layers
@@ -67,9 +67,9 @@ class LSTMModel(nn.Module):
         # Output heads
         self.volatility_head = nn.Linear(hidden_size2, 1)   # regression
         self.direction_head = nn.Sequential(
-            nn.Linear(hidden_size2, hidden_size2),
+            nn.Linear(hidden_size2, 32),
             nn.ReLU(),
-            nn.Linear(hidden_size2, 1)
+            nn.Linear(32, 1)
         )   # binary classification
 
         bce_loss = nn.BCEWithLogitsLoss()
