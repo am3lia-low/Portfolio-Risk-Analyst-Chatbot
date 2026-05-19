@@ -14,3 +14,10 @@ agent_tools/rag_tools/.virtual_documents/
 agent_tools/rag_tools/vector_db/
 agent_tools/rag_tools/knowledge_base/
 agent_tools/rag_tools/retrieval_log/
+balanced_portfolio.txt
+individual_report.docx
+limitations_strengths_recommendations.txt
+pipeline_technical_overview.txt
+report_sections_6_7.txt
+results_and_discussion.txt
+generate_report.py
